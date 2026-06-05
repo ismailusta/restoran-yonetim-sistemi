@@ -3,27 +3,31 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSocket } from '@/hooks/useSocket';
+import { getSocket } from '@/lib/socket';
 import type { CartItem, MenuItem } from '@/types';
-
-const API_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
+import menuData from '@/data/menu.json';
 
 export default function WaiterPage() {
   const socket = useSocket();
-  const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState('');
+  const [menu] = useState<MenuItem[]>(menuData);
+  const [activeCategory, setActiveCategory] = useState(menuData[0]?.category ?? '');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [tableNumber, setTableNumber] = useState(1);
   const [sending, setSending] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/menu`)
-      .then((r) => r.json())
-      .then((data: MenuItem[]) => {
-        setMenu(data);
-        const cats = [...new Set(data.map((m) => m.category))];
-        if (cats.length) setActiveCategory(cats[0]);
-      });
+    const socket = getSocket();
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    setConnected(socket.connected);
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+    };
   }, []);
 
   const categories = useMemo(
@@ -108,7 +112,11 @@ export default function WaiterPage() {
       <section className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between md:mb-6">
           <h2 className="font-display text-2xl">{activeCategory}</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${connected ? 'bg-accent' : 'bg-red-400'}`} />
+              <span className="text-xs text-neutral-400">{connected ? 'Bağlı' : 'Bağlantı yok'}</span>
+            </div>
             <span className="text-xs text-neutral-400">Masa</span>
             <select
               value={tableNumber}
