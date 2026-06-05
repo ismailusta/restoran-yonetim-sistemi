@@ -43,7 +43,12 @@ app.get('/api/menu', (_req, res) => {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: isAllowedOrigin, methods: ['GET', 'POST'] },
+  cors: {
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
+    methods: ['GET', 'POST'],
+  },
 });
 
 initTelegram();

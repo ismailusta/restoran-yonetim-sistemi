@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSocket } from '@/hooks/useSocket';
-import { getSocket } from '@/lib/socket';
+import { getSocket, SERVER_URL } from '@/lib/socket';
 import type { CartItem, MenuItem } from '@/types';
 import { menuData } from '@/data/menu';
 
@@ -113,9 +113,16 @@ export default function WaiterPage() {
         <div className="mb-4 flex items-center justify-between md:mb-6">
           <h2 className="font-display text-2xl">{activeCategory}</h2>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-full ${connected ? 'bg-accent' : 'bg-red-400'}`} />
-              <span className="text-xs text-neutral-400">{connected ? 'Bağlı' : 'Bağlantı yok'}</span>
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${connected ? 'bg-accent' : 'bg-red-400'}`} />
+                <span className="text-xs text-neutral-400">{connected ? 'Bağlı' : 'Bağlantı yok'}</span>
+              </div>
+              {!connected && (
+                <span className="text-[10px] text-red-400">
+                  {SERVER_URL.includes('localhost') ? 'Env eksik — redeploy gerek' : SERVER_URL}
+                </span>
+              )}
             </div>
             <span className="text-xs text-neutral-400">Masa</span>
             <select
