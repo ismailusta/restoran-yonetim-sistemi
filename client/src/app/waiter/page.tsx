@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSocket } from '@/hooks/useSocket';
 import { getSocket } from '@/lib/socket';
 import type { CartItem, MenuItem } from '@/types';
-import menuData from '@/data/menu.json';
+import { menuData } from '@/data/menu';
 
 export default function WaiterPage() {
   const socket = useSocket();
