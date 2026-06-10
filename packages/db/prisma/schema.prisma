@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Setting {
+  key   String @id
+  value String
+
+  @@map("settings")
+}
+
+model Area {
+  id         String         @id
+  label      String
+  tableCount Int            @map("table_count")
+  sortOrder  Int            @default(0) @map("sort_order")
+  active     Boolean        @default(true)
+  sessions   TableSession[]
+
+  @@map("areas")
+}
+
+model Category {
+  id        Int        @id @default(autoincrement())
+  name      String
+  sortOrder Int        @default(0) @map("sort_order")
+  active    Boolean    @default(true)
+  items     MenuItem[]
+
+  @@map("categories")
+}
+
+model MenuItem {
+  id         Int                @id @default(autoincrement())
+  name       String
+  price      Int
+  type       String
+  categoryId Int                @map("category_id")
+  category   Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  active     Boolean            @default(true)
+  modifiers  MenuItemModifier[]
+
+  @@map("menu_items")
+}
+
+model MenuItemModifier {
+  id         Int      @id @default(autoincrement())
+  menuItemId Int      @map("menu_item_id")
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  label      String
+  priceDelta Int      @default(0) @map("price_delta")
+  sortOrder  Int      @default(0) @map("sort_order")
+  active     Boolean  @default(true)
+
+  @@map("menu_item_modifiers")
+}
+
+model TableSession {
+  id          String   @id @default(uuid())
+  areaId      String   @map("area_id")
+  tableNumber Int      @map("table_number")
+  items       Json     @default("[]")
+  area        Area     @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([areaId, tableNumber])
+  @@map("table_sessions")
+}
+
+model AdminUser {
+  id           String @id @default(uuid())
+  email        String @unique
+  passwordHash String @map("password_hash")
+
+  @@map("admin_users")
+}
+
+model WaiterUser {
+  id        String   @id @default(uuid())
+  name      String
+  pinHash   String   @map("pin_hash")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("waiter_users")
+}
+
+model Sale {
+  id          String   @id @default(uuid())
+  areaId      String   @map("area_id")
+  tableNumber Int      @map("table_number")
+  total       Int
+  items       Json     @default("[]")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("sales")
+}

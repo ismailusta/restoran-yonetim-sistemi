@@ -3,14 +3,9 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { prisma } from '@restoran/db';
 import { initTelegram } from './telegram.js';
 import { setupSocket } from './socket.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const menu = JSON.parse(readFileSync(join(__dirname, 'data', 'menu.json'), 'utf-8'));
 
 const PORT = process.env.PORT || 4000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
@@ -37,8 +32,36 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get('/api/menu', (_req, res) => {
-  res.json(menu);
+app.get('/api/menu', async (_req, res) => {
+  try {
+    const items = await prisma.menuItem.findMany({
+      where: { active: true },
+      include: {
+        category: true,
+        modifiers: {
+          where: { active: true },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+      orderBy: [{ category: { sortOrder: 'asc' } }, { id: 'asc' }],
+    });
+    res.json(
+      items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        price: i.price,
+        type: i.type,
+        category: i.category.name,
+        modifiers: i.modifiers.map((m) => ({
+          id: m.id,
+          label: m.label,
+          priceDelta: m.priceDelta,
+        })),
+      })),
+    );
+  } catch (err) {
+    res.status(500).json({ error: 'Menü yüklenemedi' });
+  }
 });
 
 const httpServer = createServer(app);

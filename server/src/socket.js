@@ -1,69 +1,106 @@
 import { v4 as uuidv4 } from 'uuid';
-import { addTicket, removeTicket, getTickets } from './store.js';
 import { sendOrderNotification } from './telegram.js';
+import { printKitchenAndBar, printCashierReceipt } from './print.js';
+import {
+  getAllTables,
+  getTable,
+  addToTable,
+  clearTable,
+  isValidArea,
+  areaLabel,
+} from './tables.js';
+import { recordSale } from './sales.js';
+import { buildCashierReceipt } from './rates.js';
+
+async function broadcastTables(io) {
+  const tables = await getAllTables();
+  io.emit('tablesUpdated', tables);
+}
 
 export function setupSocket(io) {
   io.on('connection', (socket) => {
     console.log(`[Socket] Bağlantı: ${socket.id}`);
 
-    socket.on('joinRoom', ({ room }) => {
-      if (room === 'kitchen_room' || room === 'bar_room') {
+    socket.on('joinRoom', async ({ room }) => {
+      if (room === 'printer_room') {
         socket.join(room);
-        const station = room === 'kitchen_room' ? 'kitchen' : 'bar';
-        const tickets = getTickets(station);
-        socket.emit('syncTickets', tickets);
-        console.log(`[Socket] ${socket.id} → ${room}`);
+        console.log(`[Socket] ✓ Print agent bağlandı: ${socket.id}`);
+      }
+      if (room === 'waiter_room') {
+        socket.join(room);
+        const tables = await getAllTables();
+        socket.emit('syncTables', tables);
+        console.log(`[Socket] Garson ekranı bağlandı: ${socket.id}`);
       }
     });
 
     socket.on('newOrder', async (order) => {
-      const { tableNumber, items, total } = order;
+      const { area, tableNumber, items, total } = order;
 
-      if (!tableNumber || !items?.length) return;
+      if (!(await isValidArea(area)) || !tableNumber || !items?.length) return;
 
       const orderId = uuidv4();
-      const createdAt = new Date().toISOString();
+      await addToTable(area, tableNumber, items);
+      await printKitchenAndBar(io, { area, tableNumber, items });
+      await sendOrderNotification({
+        area: await areaLabel(area),
+        tableNumber,
+        total,
+      });
 
-      const kitchenItems = items.filter((i) => i.type === 'kitchen');
-      const barItems = items.filter((i) => i.type === 'bar');
-
-      if (kitchenItems.length > 0) {
-        const ticket = addTicket('kitchen', {
-          id: uuidv4(),
-          orderId,
-          tableNumber,
-          items: kitchenItems,
-          createdAt,
-        });
-        io.to('kitchen_room').emit('kitchenTicket', ticket);
-      }
-
-      if (barItems.length > 0) {
-        const ticket = addTicket('bar', {
-          id: uuidv4(),
-          orderId,
-          tableNumber,
-          items: barItems,
-          createdAt,
-        });
-        io.to('bar_room').emit('barTicket', ticket);
-      }
-
-      await sendOrderNotification({ tableNumber, total });
-
-      socket.emit('orderConfirmed', { orderId, tableNumber });
-      console.log(`[Socket] Yeni sipariş — Masa ${tableNumber}, Toplam ${total} TL`);
+      await broadcastTables(io);
+      socket.emit('orderConfirmed', { orderId, area, tableNumber });
+      console.log(`[Socket] Sipariş — ${await areaLabel(area)} Masa ${tableNumber}`);
     });
 
-    socket.on('orderReady', ({ ticketId, station }) => {
-      if (!ticketId || !['kitchen', 'bar'].includes(station)) return;
+    socket.on('printAdisyon', async ({ area, tableNumber, currency }) => {
+      if (!(await isValidArea(area))) return;
 
-      const removed = removeTicket(station, ticketId);
-      if (!removed) return;
+      const table = await getTable(area, tableNumber);
 
-      const room = station === 'kitchen' ? 'kitchen_room' : 'bar_room';
-      io.to(room).emit('ticketRemoved', { ticketId, station });
-      console.log(`[Socket] Ticket hazır — ${station} / ${ticketId}`);
+      if (!table || table.items.length === 0) {
+        socket.emit('adisyonError', { message: 'Bu masada sipariş yok' });
+        return;
+      }
+
+      try {
+        const receipt = await buildCashierReceipt(table.items, table.total, currency);
+        await printCashierReceipt(io, {
+          area,
+          tableNumber: table.tableNumber,
+          siparisler: receipt.siparisler,
+          total: receipt.toplamTutar,
+          paraBirimi: receipt.paraBirimi,
+          birim: receipt.birim,
+        });
+        socket.emit('adisyonQueued', { area, tableNumber: table.tableNumber });
+        console.log(
+          `[Socket] Adisyon — ${await areaLabel(area)} Masa ${tableNumber}, ${receipt.toplamTutar} ${receipt.birim}`,
+        );
+      } catch (err) {
+        socket.emit('adisyonError', {
+          message: err.message || 'Adisyon yazdırılamadı',
+        });
+      }
+    });
+
+    socket.on('closeTable', async ({ area, tableNumber }) => {
+      if (!(await isValidArea(area))) return;
+
+      const table = await getTable(area, tableNumber);
+      if (table?.items?.length > 0) {
+        await recordSale({
+          area,
+          tableNumber: table.tableNumber,
+          items: table.items,
+          total: table.total,
+        });
+      }
+
+      await clearTable(area, tableNumber);
+      await broadcastTables(io);
+      socket.emit('tableClosed', { area, tableNumber });
+      console.log(`[Socket] Masa kapatıldı — ${await areaLabel(area)} ${tableNumber}`);
     });
 
     socket.on('disconnect', () => {

@@ -14,11 +14,11 @@ export function initTelegram() {
   return bot;
 }
 
-export async function sendOrderNotification({ tableNumber, total }) {
+export async function sendOrderNotification({ area, tableNumber, total }) {
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!bot || !chatId) return;
 
-  const message = `🍽️ Yeni Sipariş!\nMasa ${tableNumber} — Toplam Tutar: ${total} TL`;
+  const message = `🍽️ Yeni Sipariş!\n${area} — Masa ${tableNumber}\nToplam: ${total} TL`;
 
   try {
     await bot.sendMessage(chatId, message);

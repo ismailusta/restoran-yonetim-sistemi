@@ -1,127 +1,118 @@
 # Restoran Yönetim Sistemi
 
-Gerçek zamanlı sipariş takip ve KDS (Kitchen Display System) demo uygulaması.
+Garson sipariş ekranı + 3 termal yazıcı (kasa, mutfak, bar) entegrasyonu.
 
 ## Yapı
 
 ```
-/client   → Next.js + Tailwind + PWA + Socket.io-client
-/server   → Express + Socket.io + Telegram Bot
+/client       → Next.js garson ekranı (Vercel)
+/server       → Express + Socket.io (Railway)
+/print-agent  → Termal yazıcı köprüsü (kasa PC — Windows)
 ```
 
-## Kurulum
+## Akış
+
+| Aksiyon | Ne olur |
+|---------|---------|
+| **Gönder** | Mutfak ürünleri → mutfak yazıcısı, bar ürünleri → bar yazıcısı. Sepet temizlenir. |
+| **Adisyon Yazdır** | Tüm sipariş + toplam → kasa yazıcısı. Sepet kalır. |
+
+## Kurulum (geliştirme)
 
 ```bash
 npm install
 ```
 
-### Server ortam değişkenleri
-
-`server/.env` dosyası oluşturun:
+### Server (`server/.env`)
 
 ```env
 PORT=4000
 CLIENT_URL=http://localhost:3000
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
+TELEGRAM_BOT_TOKEN=opsiyonel
+TELEGRAM_CHAT_ID=opsiyonel
 ```
 
-Telegram değişkenleri opsiyoneldir — tanımlanmazsa bildirimler devre dışı kalır.
-
-### Client ortam değişkenleri (opsiyonel)
-
-`client/.env.local`:
+### Print Agent (`print-agent/.env`)
 
 ```env
-NEXT_PUBLIC_SERVER_URL=http://localhost:4000
+# npm run dev ile test → localhost
+# Canlı kasa PC → Railway URL
+SERVER_URL=http://localhost:4000
+PRINTER_CASHIER=POS-80
+SIMULATE_PRINT=false
 ```
 
-## Çalıştırma
+**Önemli:** Client ve print-agent **aynı server'a** bağlanmalı!
+- Local test: ikisi de `http://localhost:4000`
+- Canlı: ikisi de Railway URL
+
+### Çalıştırma
 
 ```bash
 npm run dev
 ```
 
-- Client: http://localhost:3000
+- Client: http://localhost:3000/waiter
 - Server: http://localhost:4000
+- Print Agent: arka planda Socket.io dinler
 
-## Ekranlar
+## Canlıya Alma
 
-| Sayfa | Açıklama |
-|-------|----------|
-| `/waiter` | Garson — sipariş alma (mobil dikey) |
-| `/kitchen` | Mutfak KDS — yemek siparişleri (yatay) |
-| `/bar` | Bar KDS — içecek siparişleri (yatay) |
+### Server → Railway
 
-## Demo Akışı
+- Root Directory: `server`
+- `CLIENT_URL` = Vercel URL
 
-1. `/kitchen` ve `/bar` sayfalarını ayrı sekmelerde açın
-2. `/waiter` sayfasından sipariş oluşturup **Gönder**'e basın
-3. Yemekler mutfağa, içecekler bara anında düşer
-4. Telegram'a bildirim gider (yapılandırıldıysa)
-5. KDS ekranında **Hazır — Yazdır** ile sanal termal yazıcı simülasyonu
+### Client → Vercel
 
-## Canlıya Alma (Deploy)
+- Root Directory: `client`
+- `NEXT_PUBLIC_SERVER_URL` = Railway URL
 
-### Mimari
+### Print Agent → Kasa PC (Windows)
 
+Sadece garsonun kullandığı bilgisayara kurulur. 3 USB termal yazıcı bağlı olmalı.
+
+1. Node.js 20+ kur
+2. Repo'yu klonla veya sadece `print-agent` klasörünü kopyala
+3. `print-agent/.env` oluştur:
+
+```env
+SERVER_URL=https://server-production-cb2c.up.railway.app
+RESTAURANT_NAME=PANORAMA RESTORAN
+PRINTER_CASHIER=KASA-80
+PRINTER_KITCHEN=MUTFAK-80
+PRINTER_BAR=BAR-80
+SIMULATE_PRINT=false
 ```
-GitHub Repo
-    ├── /server  →  Railway   (WebSocket + API)
-    └── /client  →  Vercel    (Next.js arayüz)
-```
 
-### 1. GitHub'a push
+4. Windows'ta yazıcı adlarını kontrol et: **Ayarlar → Yazıcılar**
 
 ```bash
-git add .
-git commit -m "Restoran KDS demo"
-git push origin main
+cd print-agent
+npm install
+npm start
 ```
 
-### 2. Server → Railway
+## Windows'ta Otomatik Başlatma (pm2)
 
-1. https://railway.app → **New Project** → **Deploy from GitHub repo**
-2. Repo'yu seç → servis ayarları:
-   - **Root Directory:** `server`
-   - **Start Command:** `npm start` (otomatik gelir)
-3. **Variables** sekmesine ekle:
+```bash
+npm install -g pm2
+npm install -g pm2-windows-startup
 
-```env
-CLIENT_URL=https://SENIN-APP.vercel.app
-TELEGRAM_BOT_TOKEN=opsiyonel
-TELEGRAM_CHAT_ID=opsiyonel
+cd print-agent
+pm2 start src/index.js --name restoran-print
+pm2 save
+pm2-startup install
 ```
 
-4. **Settings → Networking → Generate Domain** → URL'i kopyala  
-   Örnek: `https://restoran-server-production.up.railway.app`
-5. Test: `https://SENIN-SERVER-URL/health` → `{"status":"ok"}`
+Bilgisayar her açıldığında print agent arka planda başlar.
 
-### 3. Client → Vercel
+## Yazıcı Kurulumu
 
-1. https://vercel.com → **Add New Project** → GitHub repo'yu import et
-2. Ayarlar:
-   - **Root Directory:** `client`
-   - **Framework:** Next.js (otomatik)
-3. **Environment Variables:**
+| Yazıcı | Windows adı | Fiş |
+|--------|---------------|-----|
+| Kasa | `KASA-80` | Adisyon (toplam dahil) |
+| Mutfak | `MUTFAK-80` | Yemek siparişleri |
+| Bar | `BAR-80` | İçecek siparişleri |
 
-```env
-NEXT_PUBLIC_SERVER_URL=https://SENIN-SERVER-URL
-```
-
-4. **Deploy** → URL'i kopyala  
-   Örnek: `https://restoran-kds.vercel.app`
-
-### 4. CORS güncelle
-
-Railway'deki `CLIENT_URL` değişkenini Vercel'in gerçek URL'si yap → **Redeploy**.
-
-### 5. Demo testi
-
-| Sekme | URL |
-|-------|-----|
-| Garson | `https://SENIN-APP.vercel.app/waiter` |
-| Mutfak | `https://SENIN-APP.vercel.app/kitchen` |
-| Bar | `https://SENIN-APP.vercel.app/bar` |
-
-Garson'dan sipariş gönder → mutfak ve bar ekranlarına anında düşmeli.
+Üç yazıcı aynı PC'ye USB ile bağlanır. Her birine Windows'ta **farklı isim** verin.

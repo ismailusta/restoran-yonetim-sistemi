@@ -3,15 +3,22 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:print-agent\"",
     "dev:server": "npm run dev --workspace=server",
     "dev:client": "npm run dev --workspace=client",
+    "dev:print-agent": "npm run dev --workspace=print-agent",
     "build": "npm run build --workspace=client",
-    "start:server": "npm run start --workspace=server"
+    "start:server": "npm run start --workspace=server",
+    "start:print-agent": "npm run start --workspace=print-agent",
+    "db:setup": "npm run db:setup --workspace=@restoran/db",
+    "db:push": "npm run db:push --workspace=@restoran/db",
+    "postinstall": "npm run db:generate --workspace=@restoran/db"
   },
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "print-agent",
+    "packages/db"
   ],
   "devDependencies": {
     "concurrently": "^9.1.2"

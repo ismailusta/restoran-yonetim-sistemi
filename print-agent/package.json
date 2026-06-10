@@ -1,0 +1,16 @@
+{
+  "name": "print-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "printers": "powershell -Command \"Get-Printer | Format-Table Name, DriverName, PortName -AutoSize\""
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "node-thermal-printer": "^4.4.5",
+    "socket.io-client": "^4.8.1"
+  }
+}

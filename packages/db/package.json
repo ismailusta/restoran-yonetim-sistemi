@@ -1,0 +1,26 @@
+{
+  "name": "@restoran/db",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "node prisma/seed.js",
+    "db:setup": "prisma db push && node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.1"
+  },
+  "devDependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "prisma": "^6.3.1"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "node prisma/seed.js"
+  }
+}
