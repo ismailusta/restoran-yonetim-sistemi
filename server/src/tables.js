@@ -104,6 +104,48 @@ export async function addToTable(area, tableNumber, items) {
   return formatSession(session);
 }
 
+export async function removeFromTable(area, tableNumber, lineKey, { removeAll = false } = {}) {
+  const num = Number(tableNumber);
+  const session = await prisma.tableSession.findUnique({
+    where: { areaId_tableNumber: { areaId: area, tableNumber: num } },
+  });
+
+  if (!session || !Array.isArray(session.items) || session.items.length === 0) {
+    return getTable(area, num);
+  }
+
+  const items = session.items;
+  const idx = items.findIndex((i) => itemLineKey(i) === lineKey);
+  if (idx === -1) return formatSession(session);
+
+  const item = items[idx];
+  const nextItems =
+    removeAll || item.quantity <= 1
+      ? items.filter((_, j) => j !== idx)
+      : items.map((i, j) => (j === idx ? { ...i, quantity: i.quantity - 1 } : i));
+
+  if (nextItems.length === 0) {
+    await prisma.tableSession.deleteMany({
+      where: { areaId: area, tableNumber: num },
+    });
+    return {
+      area,
+      tableNumber: num,
+      items: [],
+      status: 'empty',
+      total: 0,
+      updatedAt: null,
+    };
+  }
+
+  const updated = await prisma.tableSession.update({
+    where: { areaId_tableNumber: { areaId: area, tableNumber: num } },
+    data: { items: nextItems },
+  });
+
+  return formatSession(updated);
+}
+
 export async function clearTable(area, tableNumber) {
   const num = Number(tableNumber);
   await prisma.tableSession.deleteMany({

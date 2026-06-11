@@ -10,6 +10,12 @@ interface TablesViewProps {
   tables: TableState[];
   onPrintAdisyon: (area: string, tableNumber: number, currency: CurrencyCode) => void;
   onCloseTable: (area: string, tableNumber: number) => void;
+  onRemoveItem: (
+    area: string,
+    tableNumber: number,
+    lineKey: string,
+    removeAll: boolean,
+  ) => void;
   onSelectForOrder: (area: string, tableNumber: number) => void;
   printingKey: string | null;
   printedKey: string | null;
@@ -20,6 +26,7 @@ export default function TablesView({
   tables,
   onPrintAdisyon,
   onCloseTable,
+  onRemoveItem,
   onSelectForOrder,
   printingKey,
   printedKey,
@@ -38,6 +45,17 @@ export default function TablesView({
   const handleSelect = useCallback((area: string, tableNumber: number) => {
     setSelected(tableKey(area, tableNumber));
   }, []);
+
+  const handleCloseTable = useCallback(() => {
+    if (!selectedTable || selectedTable.status !== 'occupied') return;
+
+    const label = areaLabel(areas, selectedTable.area);
+    const total = selectedTable.total.toLocaleString('tr-TR');
+    const ok = window.confirm(
+      `Masa ${selectedTable.tableNumber} (${label}) kapatılsın mı?\n\nToplam: ${total} TL\nÖdeme alındı olarak kaydedilecek.`,
+    );
+    if (ok) onCloseTable(selectedTable.area, selectedTable.tableNumber);
+  }, [selectedTable, areas, onCloseTable]);
 
   if (!areas.length) {
     return (
@@ -153,17 +171,69 @@ export default function TablesView({
               ) : (
                 selectedTable.items.map((item) => (
                   <li key={item.lineKey ?? item.id} className="text-sm">
-                    <div className="flex justify-between">
-                      <span>
-                        {item.quantity}× {item.name}
-                      </span>
-                      <span className="text-neutral-400">{item.price * item.quantity} TL</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <span>
+                          {item.quantity}× {item.name}
+                        </span>
+                        {item.selectedModifiers?.length > 0 && (
+                          <p className="mt-0.5 text-[11px] text-neutral-400">
+                            {item.selectedModifiers.map((m) => m.label).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <span className="text-neutral-400">{item.price * item.quantity} TL</span>
+                        {item.quantity > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onRemoveItem(
+                                selectedTable.area,
+                                selectedTable.tableNumber,
+                                item.lineKey,
+                                false,
+                              )
+                            }
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+                            title="1 adet sil"
+                            aria-label="1 adet sil"
+                          >
+                            <span className="text-base font-medium leading-none">−</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onRemoveItem(
+                              selectedTable.area,
+                              selectedTable.tableNumber,
+                              item.lineKey,
+                              true,
+                            )
+                          }
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 text-neutral-400 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                          title={item.quantity > 1 ? 'Tüm kalemi sil' : 'Kalemi sil'}
+                          aria-label={item.quantity > 1 ? 'Tüm kalemi sil' : 'Kalemi sil'}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            className="h-4 w-4"
+                            aria-hidden
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h10"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                    {item.selectedModifiers?.length > 0 && (
-                      <p className="mt-0.5 text-[11px] text-neutral-400">
-                        {item.selectedModifiers.map((m) => m.label).join(', ')}
-                      </p>
-                    )}
                   </li>
                 ))
               )}
@@ -206,7 +276,7 @@ export default function TablesView({
               </button>
               {selectedTable.status === 'occupied' && (
                 <button
-                  onClick={() => onCloseTable(selectedTable.area, selectedTable.tableNumber)}
+                  onClick={handleCloseTable}
                   className="w-full rounded-xl py-3 text-sm text-neutral-400 transition-colors hover:bg-stone hover:text-ink"
                 >
                   Masayı Kapat (Ödeme alındı)

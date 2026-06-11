@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSocket } from '@/hooks/useSocket';
 import { getSocket } from '@/lib/socket';
 import TablesView from '@/components/TablesView';
+import CategoryTabs from '@/components/CategoryTabs';
+import OrderCart from '@/components/OrderCart';
 import WaiterLogout from '@/components/WaiterLogout';
 import ModifierModal from '@/components/ModifierModal';
 import { buildLineKey } from '@/lib/cart-line';
@@ -33,6 +35,14 @@ export default function WaiterPage() {
   const [loading, setLoading] = useState(true);
   const [modifierItem, setModifierItem] = useState<MenuItem | null>(null);
   const [adisyonError, setAdisyonError] = useState('');
+  const [cartOpen, setCartOpen] = useState(false);
+  const prevCartCount = useRef(0);
+
+  useEffect(() => {
+    const count = cart.reduce((sum, i) => sum + i.quantity, 0);
+    if (count > prevCartCount.current) setCartOpen(true);
+    prevCartCount.current = count;
+  }, [cart]);
 
   useEffect(() => {
     Promise.all([
@@ -174,6 +184,7 @@ export default function WaiterPage() {
 
     socket.once('orderConfirmed', () => {
       setCart([]);
+      setCartOpen(false);
       setSending(false);
       setConfirmed(true);
       setTimeout(() => setConfirmed(false), 2000);
@@ -214,6 +225,18 @@ export default function WaiterPage() {
     [socket],
   );
 
+  const removeTableItem = useCallback(
+    (targetArea: string, targetTable: number, lineKey: string, removeAll: boolean) => {
+      socket.emit('removeTableItem', {
+        area: targetArea,
+        tableNumber: targetTable,
+        lineKey,
+        removeAll,
+      });
+    },
+    [socket],
+  );
+
   const selectTableForOrder = useCallback((targetArea: string, num: number) => {
     setArea(targetArea);
     setTableNumber(num);
@@ -236,7 +259,7 @@ export default function WaiterPage() {
   }
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-dvh min-h-0 flex-col overflow-x-hidden">
       {modifierItem && (
         <ModifierModal
           item={modifierItem}
@@ -248,12 +271,12 @@ export default function WaiterPage() {
         />
       )}
 
-      <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 md:px-6">
-        <div className="flex items-center gap-4">
-          <nav className="flex gap-1 rounded-xl bg-stone p-1">
+      <header className="shrink-0 border-b border-neutral-200 bg-white px-3 py-2 sm:px-4 sm:py-3 md:px-6">
+        <div className="flex items-center justify-between gap-2">
+          <nav className="flex shrink-0 gap-1 rounded-xl bg-stone p-1">
             <button
               onClick={() => setTab('siparis')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
                 tab === 'siparis' ? 'bg-white text-ink shadow-sm' : 'text-neutral-500'
               }`}
             >
@@ -261,7 +284,7 @@ export default function WaiterPage() {
             </button>
             <button
               onClick={() => setTab('masalar')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
                 tab === 'masalar' ? 'bg-white text-ink shadow-sm' : 'text-neutral-500'
               }`}
             >
@@ -273,28 +296,23 @@ export default function WaiterPage() {
               )}
             </button>
           </nav>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <span className={`h-2 w-2 rounded-full ${connected ? 'bg-accent' : 'bg-red-400'}`} />
-          <span className="hidden text-xs text-neutral-400 sm:inline">
-            {connected ? 'Bağlı' : 'Bağlantı yok'}
-          </span>
-          {waiterName && (
-            <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-              {waiterName}
-              {isAdmin && (
-                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                  Admin
-                </span>
-              )}
-            </span>
-          )}
-          <WaiterLogout />
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className={`h-2 w-2 shrink-0 rounded-full ${connected ? 'bg-accent' : 'bg-red-400'}`}
+              title={connected ? 'Bağlı' : 'Bağlantı yok'}
+            />
+            {waiterName && (
+              <span className="hidden max-w-[5rem] truncate text-xs text-neutral-500 sm:inline sm:max-w-none">
+                {waiterName}
+              </span>
+            )}
+            <WaiterLogout />
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-y-hidden">
         {tab === 'masalar' ? (
           <div className="relative flex flex-1 flex-col overflow-hidden">
             {adisyonError && (
@@ -307,35 +325,26 @@ export default function WaiterPage() {
               tables={tables}
               onPrintAdisyon={printAdisyon}
               onCloseTable={closeTable}
+              onRemoveItem={removeTableItem}
               onSelectForOrder={selectTableForOrder}
               printingKey={printingKey}
               printedKey={printedKey}
             />
           </div>
         ) : (
-          <div className="flex flex-1 flex-col md:flex-row">
-            <aside className="flex shrink-0 gap-1 overflow-x-auto border-b border-neutral-200 bg-white px-4 py-3 md:w-44 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r md:py-6">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-left text-sm transition-colors md:whitespace-normal ${
-                    activeCategory === cat
-                      ? 'bg-ink text-white'
-                      : 'text-neutral-500 hover:bg-stone'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </aside>
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col md:flex-row">
+            <CategoryTabs
+              categories={categories}
+              activeCategory={activeCategory}
+              onSelect={setActiveCategory}
+            />
 
-            <section className="flex-1 overflow-y-auto p-4 md:p-6">
-              <div className="mb-4 flex flex-col gap-3 md:mb-6 md:flex-row md:items-center md:justify-between">
-                <h2 className="font-display text-2xl">{activeCategory}</h2>
+            <section className="min-h-0 flex-1 overflow-y-auto p-3 pb-28 sm:p-4 sm:pb-32 md:pb-6 md:p-6">
+              <div className="mb-3 flex flex-col gap-2 sm:mb-4 md:mb-6 md:flex-row md:items-center md:justify-between">
+                <h2 className="hidden font-display text-2xl md:block">{activeCategory}</h2>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <nav className="flex gap-1 rounded-xl bg-stone p-1">
+                <div className="touch-scroll-x scrollbar-hide -mx-3 flex flex-nowrap items-center gap-2 px-3 sm:mx-0 sm:flex-wrap sm:px-0 md:gap-3">
+                  <nav className="flex shrink-0 gap-1 rounded-xl bg-stone p-1">
                     {areas.map((a) => (
                       <button
                         key={a.id}
@@ -350,7 +359,7 @@ export default function WaiterPage() {
                   </nav>
 
                   {currentArea && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <span className="text-xs text-neutral-400">Masa</span>
                       <select
                         value={tableNumber}
@@ -372,12 +381,13 @@ export default function WaiterPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
                 {filtered.map((item) => (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => handleProductClick(item)}
-                    className="flex flex-col items-start rounded-2xl border border-neutral-200 p-4 text-left transition-all hover:border-ink hover:shadow-sm active:scale-[0.98]"
+                    className="flex min-h-[4.5rem] flex-col items-start rounded-xl border border-neutral-200 p-3 text-left transition-all active:scale-[0.98] active:border-ink sm:rounded-2xl sm:p-4 sm:hover:border-ink sm:hover:shadow-sm"
                   >
                     <span className="text-sm font-medium">{item.name}</span>
                     <span className="mt-1 text-xs text-neutral-400">{item.price} TL</span>
@@ -391,63 +401,33 @@ export default function WaiterPage() {
               </div>
             </section>
 
-            <aside className="flex max-h-[40dvh] flex-col border-t border-neutral-200 bg-white md:max-h-none md:w-80 md:border-l md:border-t-0">
-              <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
-                <div>
-                  <h3 className="font-display text-lg">Sepet</h3>
-                  <p className="text-xs text-neutral-400">
-                    {areaLabel(areas, area)} — Masa {tableNumber}
-                  </p>
-                </div>
-              </div>
+            <OrderCart
+              layout="sidebar"
+              cart={cart}
+              total={total}
+              areas={areas}
+              area={area}
+              tableNumber={tableNumber}
+              sending={sending}
+              confirmed={confirmed}
+              onSend={sendOrder}
+              onRemove={removeFromCart}
+            />
 
-              <ul className="flex-1 space-y-2 overflow-y-auto px-5 py-3">
-                {cart.length === 0 ? (
-                  <li className="py-8 text-center text-sm text-neutral-300">Sepet boş</li>
-                ) : (
-                  cart.map((item) => (
-                    <li key={item.lineKey} className="text-sm">
-                      <div className="flex items-center justify-between">
-                        <span>
-                          {item.quantity}× {item.name}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-neutral-400">{item.price * item.quantity} TL</span>
-                          <button
-                            onClick={() => removeFromCart(item.lineKey)}
-                            className="text-neutral-300 hover:text-ink"
-                          >
-                            −
-                          </button>
-                        </div>
-                      </div>
-                      {item.selectedModifiers.length > 0 && (
-                        <p className="mt-0.5 text-[11px] text-neutral-400">
-                          {item.selectedModifiers.map((m) => m.label).join(', ')}
-                        </p>
-                      )}
-                    </li>
-                  ))
-                )}
-              </ul>
-
-              <div className="space-y-2 border-t border-neutral-100 px-5 py-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-400">Toplam</span>
-                  <span className="font-medium">{total} TL</span>
-                </div>
-                <button
-                  onClick={sendOrder}
-                  disabled={!cart.length || sending}
-                  className="w-full rounded-xl bg-ink py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-30"
-                >
-                  {confirmed ? '✓ Gönderildi' : sending ? 'Gönderiliyor…' : 'Gönder'}
-                </button>
-                <p className="text-center text-[10px] text-neutral-400">
-                  Gönder → mutfak & bar · Adisyon → Masalar sekmesi
-                </p>
-              </div>
-            </aside>
+            <OrderCart
+              layout="mobile"
+              cart={cart}
+              total={total}
+              areas={areas}
+              area={area}
+              tableNumber={tableNumber}
+              sending={sending}
+              confirmed={confirmed}
+              onSend={sendOrder}
+              onRemove={removeFromCart}
+              mobileOpen={cartOpen}
+              onMobileToggle={() => setCartOpen((o) => !o)}
+            />
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import HorizontalScrollTabs from '@/components/HorizontalScrollTabs';
 import type { StatsPeriod } from '@/lib/istanbul-date';
 
 interface ProductStat {
@@ -22,6 +23,8 @@ export default function AdminStatsPage() {
   const [period, setPeriod] = useState<StatsPeriod>('month');
   const [stats, setStats] = useState<ProductStat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [telegramSending, setTelegramSending] = useState(false);
+  const [telegramMsg, setTelegramMsg] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,24 +44,58 @@ export default function AdminStatsPage() {
   const totalQty = stats.reduce((s, r) => s + r.quantity, 0);
   const totalRev = stats.reduce((s, r) => s + r.revenue, 0);
 
+  async function sendTelegramReport() {
+    setTelegramSending(true);
+    setTelegramMsg('');
+    const res = await fetch('/api/admin/stats/telegram', { method: 'POST' });
+    if (res.ok) {
+      setTelegramMsg('Günlük rapor Telegram\'a gönderildi');
+    } else {
+      const data = await res.json();
+      setTelegramMsg(data.error || 'Gönderilemedi');
+    }
+    setTelegramSending(false);
+    setTimeout(() => setTelegramMsg(''), 3000);
+  }
+
   return (
     <div>
-      <h1 className="font-display text-2xl">İstatistikler</h1>
-      <p className="mt-1 text-sm text-neutral-400">Ürün bazlı satış adetleri ve ciro</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl">İstatistikler</h1>
+          <p className="mt-1 text-sm text-neutral-400">Ürün bazlı satış adetleri ve ciro</p>
+        </div>
+        <button
+          type="button"
+          onClick={sendTelegramReport}
+          disabled={telegramSending}
+          className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm hover:border-ink disabled:opacity-50"
+        >
+          {telegramSending ? 'Gönderiliyor…' : 'Telegram\'a günlük rapor gönder'}
+        </button>
+      </div>
+      {telegramMsg && (
+        <p className="mt-3 text-sm text-neutral-600">{telegramMsg}</p>
+      )}
 
-      <nav className="mt-6 flex flex-wrap gap-1 rounded-xl bg-stone p-1">
+      <HorizontalScrollTabs
+        className="mt-6 rounded-xl bg-stone p-1"
+        innerClassName="gap-1"
+        fade="stone"
+      >
         {(Object.keys(PERIOD_LABELS) as StatsPeriod[]).map((p) => (
           <button
             key={p}
+            type="button"
             onClick={() => setPeriod(p)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              period === p ? 'bg-white text-ink shadow-sm' : 'text-neutral-500'
+            className={`flex-none whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              period === p ? 'bg-white text-ink shadow-sm' : 'text-neutral-500 active:bg-white/60'
             }`}
           >
             {PERIOD_LABELS[p]}
           </button>
         ))}
-      </nav>
+      </HorizontalScrollTabs>
 
       {loading ? (
         <p className="mt-8 text-neutral-400">Yükleniyor…</p>

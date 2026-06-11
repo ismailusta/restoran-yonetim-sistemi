@@ -16,15 +16,8 @@ const socket = io(SERVER_URL, {
   transports: ['websocket', 'polling'],
   reconnection: true,
   reconnectionAttempts: Infinity,
-});
-
-socket.on('connect', () => {
-  console.log(`[Print Agent] ✓ Sunucuya bağlandı → ${SERVER_URL}`);
-  socket.emit('joinRoom', { room: 'printer_room' });
-});
-
-socket.on('disconnect', () => {
-  console.log('[Print Agent] Bağlantı kesildi — yeniden deneniyor...');
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
 });
 
 socket.on('printJob', async (job) => {
@@ -37,4 +30,17 @@ socket.on('printJob', async (job) => {
   } catch (err) {
     console.error(`[Print Agent] ✗ Hata (${target}):`, err.message);
   }
+});
+
+socket.on('connect', () => {
+  console.log(`[Print Agent] ✓ Sunucuya bağlandı → ${SERVER_URL}`);
+  socket.emit('joinRoom', { room: 'printer_room' });
+});
+
+socket.on('disconnect', () => {
+  console.log('[Print Agent] Bağlantı kesildi — yeniden deneniyor...');
+});
+
+socket.on('connect_error', (err) => {
+  console.log(`[Print Agent] Bağlantı bekleniyor: ${err.message}`);
 });

@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    color-scheme: light;
+  }
+
   body {
     @apply bg-white text-ink antialiased;
   }
@@ -26,5 +30,35 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  .touch-scroll-x {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Mobil kategori şeridi — içerik w-max ile taşar, parmakla kayar */
+  .category-tabs-scroll {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .category-tabs-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .category-tabs-desktop {
+    max-height: calc(100dvh - 8rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
